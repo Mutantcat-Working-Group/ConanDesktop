@@ -1,0 +1,6 @@
+Source: https://conan.io/favicon.png?v=1
+Retrieved: 2026-09-20
+Original: 71 x 74 pixel transparent PNG, unchanged in conan-icon.png.
+Conan branding belongs to its respective owners. Use does not imply endorsement.
+Desktop icons are generated from this image with proportional scaling and
+transparent padding. Larger output sizes do not add detail to the source.
