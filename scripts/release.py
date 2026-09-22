@@ -72,22 +72,29 @@ def collect(root, platform):
     print(output)
 
 
-def checksums(root):
-    version = validate_versions(root)
-    directory = root / "release-assets"
-    expected = {asset_name(version, platform) for platform in TARGETS}
-    actual = {file.name for file in directory.iterdir() if file.name != "SHA256SUMS.txt"}
-    if actual != expected:
-        raise ValueError(f"Incomplete or unexpected release assets: {actual ^ expected}")
+def write_checksums(directory, expected, algorithm, filename):
     lines = []
     for name in sorted(expected):
         path = directory / name
         if not path.is_file() or path.stat().st_size == 0:
             raise ValueError(f"Empty or invalid artifact: {name}")
         with path.open("rb") as stream:
-            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            digest = hashlib.file_digest(stream, algorithm).hexdigest()
         lines.append(f"{digest}  {name}\n")
-    (directory / "SHA256SUMS.txt").write_text("".join(lines), encoding="utf-8")
+    (directory / filename).write_text("".join(lines), encoding="utf-8")
+
+
+def checksums(root):
+    version = validate_versions(root)
+    directory = root / "release-assets"
+    expected = {asset_name(version, platform) for platform in TARGETS}
+    actual = {file.name for file in directory.iterdir()
+              if file.name != "SHA256SUMS.txt" and not file.name.startswith("checksums-")}
+    if actual != expected:
+        raise ValueError(f"Incomplete or unexpected release assets: {actual ^ expected}")
+    write_checksums(directory, expected, "sha256", "SHA256SUMS.txt")
+    write_checksums(directory, expected, "md5", "checksums-md5.txt")
+    write_checksums(directory, expected, "sha1", "checksums-sha1.txt")
 
 
 def main():
