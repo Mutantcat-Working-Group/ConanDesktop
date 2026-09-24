@@ -164,7 +164,17 @@ function App() {
           <div className="sider-spacer" />
           <div className="sider-footer">
             {!collapsed && !broken && (
+              <>
                 <Text className="sider-version">Conan Desktop {appVersion}</Text>
+                {/* 发行方信息：由异猫工作群（mutantcat.org）发行。 */}
+                <div className="sider-publisher">
+                  发行方：异猫工作群（mutantcat.org）
+                  <br />
+                  <a href="https://github.com/Mutantcat-Working-Group" target="_blank" rel="noreferrer">
+                    github.com/Mutantcat-Working-Group
+                  </a>
+                </div>
+              </>
             )}
           </div>
         </Sider>

@@ -13,6 +13,9 @@ button, input { font: inherit; }
 .sider-spacer { flex: 1; }
 .sider-footer { padding: 20px; }
 .sider-version { color: #8c8c8c; font-size: 12px; }
+.sider-publisher { margin-top: 4px; color: #8c8c8c; font-size: 12px; line-height: 18px; }
+.sider-publisher a { color: #8c8c8c; }
+.sider-publisher a:hover { color: #1677ff; }
 .app-header { height: 92px; line-height: normal; padding: 18px 28px; display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 1px solid #e8ebef; }
 .header-left { display: flex; gap: 16px; align-items: center; min-width: 0; }
 .header-title h3 { margin: 0 0 6px; font-size: 22px; }
