@@ -34,9 +34,9 @@
     "windows": {
       "webviewInstallMode": { "type": "offlineInstaller", "silent": true },
       "nsis": {
-        "installMode": "currentUser",
-        "languages": ["SimpChinese", "English"],
-        "displayLanguageSelector": true
+        "installMode": "perMachine",
+        "languages": ["SimpChinese"],
+        "template": "installer.nsi"
       }
     },
     "icon": [
