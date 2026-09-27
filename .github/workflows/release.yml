@@ -102,10 +102,63 @@ jobs:
           pnpm test
           cargo fmt --manifest-path src-tauri/Cargo.toml --check
           cargo test --manifest-path src-tauri/Cargo.toml --locked --target ${{ matrix.target }}
+      # Tauri copies the binary into the installer as-is, so the exe has to be
+      # signed before the bundle step runs.
+      - name: Build release binary
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cargo build --release --locked --target ${{ matrix.target }} --manifest-path src-tauri/Cargo.toml
+
+      - name: Sign Windows application binary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pfx = Join-Path $env:RUNNER_TEMP 'mutantcat-code-signing.pfx'
+          $password = 'mutantcat'
+          $cert = New-SelfSignedCertificate `
+            -Subject 'CN=Mutantcat Working Group, O=Mutantcat Working Group, C=CN' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -KeyUsage DigitalSignature `
+            -Type CodeSigningCert `
+            -KeyExportPolicy Exportable `
+            -KeyLength 2048 `
+            -HashAlgorithm SHA256 `
+            -NotAfter (Get-Date).AddYears(10)
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password (ConvertTo-SecureString -String $password -Force -AsPlainText) | Out-Null
+          "PFX_PATH=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "SIGN_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $signtool = $null
+          foreach ($kit in (Get-ChildItem -Path 'C:\Program Files (x86)\Windows Kits\10\bin' -Directory | Sort-Object Name -Descending)) {
+            $candidate = Join-Path $kit.FullName 'x64\signtool.exe'
+            if (Test-Path $candidate) { $signtool = $candidate; break }
+          }
+          if (-not $signtool) { throw 'signtool.exe not found in the Windows SDK' }
+          "SIGNTOOL_PATH=$signtool" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $target = "src-tauri/target/${{ matrix.target }}/release/tauri-app.exe"
+          if (-not (Test-Path $target)) { throw "missing $target" }
+          & $signtool sign /fd SHA256 /f $pfx /p $password /d "Conan Desktop" "$target"
+          echo "signed $target"
+
       - name: Build installer
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundle }} -- --locked
+
+      - name: Sign Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:PFX_PATH -or -not $env:SIGNTOOL_PATH) { throw 'code-signing setup did not run' }
+          $app = "src-tauri/target/${{ matrix.target }}/release/tauri-app.exe"
+          $signature = Get-AuthenticodeSignature $app
+          if ($signature.Status -ne 'Valid') { throw "$app lost its signature during bundling ($($signature.Status))" }
+          Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle/nsis" -Filter *.exe | ForEach-Object {
+            & $env:SIGNTOOL_PATH sign /fd SHA256 /f $env:PFX_PATH /p $env:SIGN_PASSWORD /d "Conan Desktop Installer" "$($_.FullName)"
+            echo "signed $($_.Name)"
+          }
+          if (-not (Get-ChildItem -Path "src-tauri/target/${{ matrix.target }}/release/bundle/nsis" -Filter *.exe)) { throw 'no NSIS installer found' }
       - name: Verify app and ad-hoc sign DMG
         if: runner.os == 'macOS'
         shell: bash
@@ -123,6 +176,10 @@ jobs:
           codesign --verify --strict --verbose=2 "${images[0]}"
           codesign -dv --verbose=4 "${images[0]}" 2>&1 | grep -F 'Signature=adhoc'
           hdiutil verify "${images[0]}"
+          mount="$(mktemp -d)"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "${images[0]}"
+          test -L "$mount/Applications"
+          hdiutil detach "$mount"
       - name: Verify AppImage payload
         if: runner.os == 'Linux'
         shell: bash
